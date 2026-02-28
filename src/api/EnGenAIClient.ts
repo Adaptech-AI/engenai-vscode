@@ -8,8 +8,10 @@ import type { Project, UserInfo, AgentMessage } from "../types/protocol.js";
 export class EnGenAIClient {
   private baseUrl: string;
   private token: string | undefined;
+  private readonly extensionVersion: string;
 
-  constructor() {
+  constructor(extensionVersion = "0.1.2") {
+    this.extensionVersion = extensionVersion;
     const config = vscode.workspace.getConfiguration("engenai");
     this.baseUrl = config.get<string>("serverUrl", "https://dev.engenai.app");
 
@@ -188,11 +190,72 @@ export class EnGenAIClient {
     };
   }
 
-  async vaultRead(projectId: string, path: string): Promise<string> {
+  async vaultRead(
+    projectId: string,
+    path: string
+  ): Promise<{ content: string; etag: string }> {
     const res = await this.fetch(
       `/api/v1/projects/${projectId}/vault/read?path=${encodeURIComponent(path)}`
     );
-    return res.text();
+    const data = (await res.json()) as { content: string; etag: string };
+    return data;
+  }
+
+  async vaultWrite(
+    projectId: string,
+    path: string,
+    content: string,
+    ifMatch?: string
+  ): Promise<{ etag: string; action: string; size_bytes: number }> {
+    const headers: Record<string, string> = {};
+    if (ifMatch !== undefined) {
+      headers["If-Match"] = ifMatch;
+    }
+    const res = await this.fetch(
+      `/api/v1/projects/${projectId}/vault/write?path=${encodeURIComponent(path)}`,
+      {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ content }),
+      }
+    );
+    return (await res.json()) as { etag: string; action: string; size_bytes: number };
+  }
+
+  async vaultDelete(projectId: string, path: string): Promise<void> {
+    await this.fetch(
+      `/api/v1/projects/${projectId}/vault/delete?path=${encodeURIComponent(path)}`,
+      { method: "DELETE" }
+    );
+  }
+
+  async vaultRename(
+    projectId: string,
+    fromPath: string,
+    toPath: string
+  ): Promise<{ from: string; to: string; etag: string }> {
+    const res = await this.fetch(
+      `/api/v1/projects/${projectId}/vault/rename`,
+      {
+        method: "POST",
+        body: JSON.stringify({ from_path: fromPath, to_path: toPath }),
+      }
+    );
+    return (await res.json()) as { from: string; to: string; etag: string };
+  }
+
+  async vaultMkdir(
+    projectId: string,
+    path: string
+  ): Promise<{ path: string; placeholder: string }> {
+    const res = await this.fetch(
+      `/api/v1/projects/${projectId}/vault/mkdir`,
+      {
+        method: "POST",
+        body: JSON.stringify({ path }),
+      }
+    );
+    return (await res.json()) as { path: string; placeholder: string };
   }
 
   // --- Context Pipeline ---
@@ -248,6 +311,10 @@ export class EnGenAIClient {
     const url = path.startsWith("http") ? path : `${this.baseUrl}${path}`;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
+      // Client identification — helps backend distinguish extension traffic from web UI
+      // and enables per-version deprecation warnings without breaking old clients.
+      "X-EnGenAI-Client": "vscode-extension",
+      "X-EnGenAI-Version": this.extensionVersion,
       ...(options.headers as Record<string, string>),
     };
 

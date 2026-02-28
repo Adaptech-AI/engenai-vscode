@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { EnGenAIClient } from "../api/EnGenAIClient.js";
+import { EnGenAIClient, ApiError } from "../api/EnGenAIClient.js";
 import { SSEClient } from "../streaming/SSEClient.js";
 
 /**
@@ -38,6 +38,8 @@ export class DevVaultFS implements vscode.FileSystemProvider {
     string,
     { content: Uint8Array; mtime: number }
   >();
+  // ETag cache: uri → content hash from last read/write. Used for If-Match on writes.
+  private etagCache = new Map<string, string>();
 
   private readonly STAT_TTL = 30_000;
   private readonly DIR_TTL = 30_000;
@@ -145,10 +147,15 @@ export class DevVaultFS implements vscode.FileSystemProvider {
     const { projectId, vaultPath } = this.parseUri(uri);
 
     try {
-      const content = await this.client.vaultRead(projectId, vaultPath);
+      const { content, etag } = await this.client.vaultRead(projectId, vaultPath);
       const encoded = new TextEncoder().encode(content);
 
-      // Cache with current mtime
+      // Cache ETag for subsequent writes
+      if (etag) {
+        this.etagCache.set(key, etag);
+      }
+
+      // Cache content keyed by mtime
       const stat = this.statCache.get(key);
       if (stat) {
         this.fileCache.set(key, {
@@ -164,31 +171,152 @@ export class DevVaultFS implements vscode.FileSystemProvider {
   }
 
   // ──────────────────────────────────────────
-  // FileSystemProvider: Write methods (Sprint 17: read-only)
+  // FileSystemProvider: Write methods (Sprint 19 Phase I)
   // ──────────────────────────────────────────
 
-  writeFile(): void {
-    throw vscode.FileSystemError.NoPermissions(
-      "Dev-Vault is read-only in this version. Agents create and edit files."
+  async writeFile(
+    uri: vscode.Uri,
+    content: Uint8Array,
+    options: { create: boolean; overwrite: boolean }
+  ): Promise<void> {
+    const { projectId, vaultPath } = this.parseUri(uri);
+    const key = uri.toString();
+    const text = new TextDecoder().decode(content);
+
+    // Use cached ETag for conditional write (If-Match: {hash}).
+    // First-time write: no ETag → no If-Match header (unconditional create).
+    const ifMatch = this.etagCache.get(key);
+
+    try {
+      const result = await this.client.vaultWrite(
+        projectId,
+        vaultPath,
+        text,
+        ifMatch
+      );
+      this.etagCache.set(key, result.etag);
+      this.invalidateCache(uri);
+      this._fireSoon({
+        type: options.create
+          ? vscode.FileChangeType.Created
+          : vscode.FileChangeType.Changed,
+        uri,
+      });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        await this._handleConflict(uri, projectId, vaultPath, text);
+      } else if (err instanceof ApiError && err.status === 404) {
+        throw vscode.FileSystemError.FileNotFound(uri);
+      } else {
+        throw vscode.FileSystemError.Unavailable(uri);
+      }
+    }
+  }
+
+  async delete(
+    uri: vscode.Uri,
+    _options: { recursive: boolean }
+  ): Promise<void> {
+    const { projectId, vaultPath } = this.parseUri(uri);
+
+    try {
+      await this.client.vaultDelete(projectId, vaultPath);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        throw vscode.FileSystemError.FileNotFound(uri);
+      }
+      throw vscode.FileSystemError.Unavailable(uri);
+    }
+
+    this.etagCache.delete(uri.toString());
+    this.invalidateCache(uri);
+    this._fireSoon({ type: vscode.FileChangeType.Deleted, uri });
+  }
+
+  async rename(
+    oldUri: vscode.Uri,
+    newUri: vscode.Uri,
+    _options: { overwrite: boolean }
+  ): Promise<void> {
+    const { projectId, vaultPath: fromPath } = this.parseUri(oldUri);
+    const { vaultPath: toPath } = this.parseUri(newUri);
+
+    try {
+      const result = await this.client.vaultRename(projectId, fromPath, toPath);
+      // Transfer ETag to the new path
+      if (result.etag) {
+        this.etagCache.set(newUri.toString(), result.etag);
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        throw vscode.FileSystemError.FileNotFound(oldUri);
+      }
+      if (err instanceof ApiError && err.status === 409) {
+        throw vscode.FileSystemError.FileExists(newUri);
+      }
+      throw vscode.FileSystemError.Unavailable(oldUri);
+    }
+
+    this.etagCache.delete(oldUri.toString());
+    this.invalidateCache(oldUri);
+    this.invalidateCache(newUri);
+    this._fireSoon(
+      { type: vscode.FileChangeType.Deleted, uri: oldUri },
+      { type: vscode.FileChangeType.Created, uri: newUri }
     );
   }
 
-  delete(): void {
-    throw vscode.FileSystemError.NoPermissions(
-      "Dev-Vault is read-only in this version."
-    );
+  async createDirectory(uri: vscode.Uri): Promise<void> {
+    const { projectId, vaultPath } = this.parseUri(uri);
+
+    try {
+      await this.client.vaultMkdir(projectId, vaultPath);
+    } catch (err) {
+      throw vscode.FileSystemError.Unavailable(uri);
+    }
+
+    this.invalidateCache(uri);
+    this._fireSoon({ type: vscode.FileChangeType.Created, uri });
   }
 
-  rename(): void {
-    throw vscode.FileSystemError.NoPermissions(
-      "Dev-Vault is read-only in this version."
-    );
-  }
+  // ──────────────────────────────────────────
+  // Conflict resolution (409 ETag mismatch)
+  // ──────────────────────────────────────────
 
-  createDirectory(): void {
-    throw vscode.FileSystemError.NoPermissions(
-      "Dev-Vault is read-only in this version."
+  private async _handleConflict(
+    uri: vscode.Uri,
+    projectId: string,
+    vaultPath: string,
+    localContent: string
+  ): Promise<void> {
+    const fileName = uri.path.split("/").pop() ?? "file";
+    const choice = await vscode.window.showWarningMessage(
+      `"${fileName}" was modified by another client while you were editing. What would you like to do?`,
+      { modal: true },
+      "Upload Anyway",
+      "Discard Local Changes"
     );
+
+    if (choice === "Upload Anyway") {
+      // Unconditional overwrite
+      const result = await this.client.vaultWrite(
+        projectId,
+        vaultPath,
+        localContent,
+        "*"
+      );
+      this.etagCache.set(uri.toString(), result.etag);
+      this.invalidateCache(uri);
+      this._fireSoon({ type: vscode.FileChangeType.Changed, uri });
+    } else {
+      // Discard local — evict cache so VS Code re-reads from vault
+      this.etagCache.delete(uri.toString());
+      this.invalidateCache(uri);
+      this._fireSoon({ type: vscode.FileChangeType.Changed, uri });
+      throw vscode.FileSystemError.Unavailable(
+        "Local changes discarded. The file will reload from the vault."
+      );
+    }
   }
 
   // ──────────────────────────────────────────
@@ -318,6 +446,7 @@ export class DevVaultFS implements vscode.FileSystemProvider {
     this.statCache.clear();
     this.dirCache.clear();
     this.fileCache.clear();
+    this.etagCache.clear();
   }
 
   // ──────────────────────────────────────────
@@ -377,9 +506,6 @@ export function registerDevVaultFS(
   context.subscriptions.push(
     vscode.workspace.registerFileSystemProvider("engenai", devVaultFS, {
       isCaseSensitive: true,
-      isReadonly: new vscode.MarkdownString(
-        "EnGenAI Dev-Vault is currently **read-only**. Files are created and edited by EnGenAI agents. Read-write support coming in a future update."
-      ),
     })
   );
 
