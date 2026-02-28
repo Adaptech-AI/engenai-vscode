@@ -2,7 +2,7 @@
   "name": "engenai",
   "displayName": "EnGenAI - AI Development Platform",
   "description": "Multi-agent AI development orchestration. Talk to Keith, watch Sophi code, see Marv build UI — all from your IDE.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "adaptech",
   "license": "Apache-2.0",
   "icon": "media/icon.png",
@@ -169,6 +169,7 @@
     "lint": "eslint src/"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.105.0",
     "@vscode/test-cli": "^0.0.10",
