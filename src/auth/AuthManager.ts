@@ -282,10 +282,16 @@ export class AuthManager implements vscode.AuthenticationProvider, vscode.Dispos
 
 /**
  * Register the auth provider and commands.
+ *
+ * @param signInFn  Optional override for `engenai.signIn`. When provided,
+ *                  the 3-tier PKCE → Device Flow → PAT orchestrator is used
+ *                  instead of the raw PAT input box. Falls back to PAT if
+ *                  not provided (e.g. in tests).
  */
 export function registerAuth(
   context: vscode.ExtensionContext,
-  authManager: AuthManager
+  authManager: AuthManager,
+  signInFn?: () => Promise<void>
 ): void {
   context.subscriptions.push(
     vscode.authentication.registerAuthenticationProvider(
@@ -298,7 +304,7 @@ export function registerAuth(
 
   context.subscriptions.push(
     vscode.commands.registerCommand("engenai.signIn", () =>
-      authManager.signInWithPAT()
+      signInFn ? signInFn() : authManager.signInWithPAT()
     )
   );
 

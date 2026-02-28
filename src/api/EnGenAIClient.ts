@@ -65,6 +65,35 @@ export class EnGenAIClient {
     };
   }
 
+  async exchangeOAuthCode(
+    code: string,
+    codeVerifier: string,
+    redirectUri: string
+  ): Promise<{ access_token: string; refresh_token: string; expires_in: number; user_info: UserInfo }> {
+    const res = await this.fetchRaw("/api/v1/oauth/token", {
+      method: "POST",
+      body: JSON.stringify({
+        grant_type: "authorization_code",
+        code,
+        code_verifier: codeVerifier,
+        redirect_uri: redirectUri,
+        client_id: "engenai-vscode",
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as { detail?: string };
+      throw new Error(err.detail ?? `OAuth token exchange failed (${res.status})`);
+    }
+
+    return (await res.json()) as {
+      access_token: string;
+      refresh_token: string;
+      expires_in: number;
+      user_info: UserInfo;
+    };
+  }
+
   async pollDeviceToken(
     deviceCode: string
   ): Promise<{ access_token: string; user_info: UserInfo } | null> {

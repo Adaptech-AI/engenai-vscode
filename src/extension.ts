@@ -1,7 +1,8 @@
 import * as vscode from "vscode";
 import { EnGenAIClient } from "./api/EnGenAIClient.js";
 import { AuthManager, registerAuth } from "./auth/AuthManager.js";
-import { registerDeviceFlow } from "./auth/DeviceFlow.js";
+import { registerDeviceFlow, startDeviceFlow } from "./auth/DeviceFlow.js";
+import { startLocalhostOAuth } from "./auth/LocalhostOAuth.js";
 import { SidebarProvider } from "./views/SidebarProvider.js";
 import { registerDevVaultFS } from "./fs/DevVaultFS.js";
 import { registerAskEnGenAI } from "./commands/askEnGenAI.js";
@@ -40,8 +41,27 @@ export async function activate(
     updateStatusBar(state, user);
   });
 
+  // --- 3-tier sign-in orchestrator ---
+  // Tier 1 (Desktop): Localhost PKCE — seamless one-click browser auth
+  // Tier 2 (fallback / Web): Device Flow — ENGN-XXXX code, works in SSH/headless
+  // Tier 3: PAT key — manual fallback via createSession (AuthenticationProvider)
+  const signInHandler = async () => {
+    if (vscode.env.uiKind === vscode.UIKind.Desktop) {
+      try {
+        await startLocalhostOAuth(client, authManager);
+        return;
+      } catch (e: unknown) {
+        // Timeout → fall through to Device Flow silently
+        // Any other error → rethrow so the user sees it
+        if (e instanceof Error && e.message !== "timeout") throw e;
+        outputChannel.info("PKCE localhost auth timed out — falling back to Device Flow");
+      }
+    }
+    await startDeviceFlow(client, authManager);
+  };
+
   // --- Register auth ---
-  registerAuth(context, authManager);
+  registerAuth(context, authManager, signInHandler);
   registerDeviceFlow(context, client, authManager);
 
   // --- Register sidebar ---
