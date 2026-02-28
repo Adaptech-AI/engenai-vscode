@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install extension dependencies
+        run: npm ci
+
+      - name: Type check extension
+        run: npm run check-types
+
+      - name: Build extension
+        run: node esbuild.js --production
+
+      - name: Install webview dependencies
+        run: cd webview-ui && npm ci
+
+      - name: Type check webview
+        run: cd webview-ui && npx tsc -b
+
+      - name: Build webview
+        run: cd webview-ui && npx vite build
+
+      - name: Package VSIX
+        run: npx vsce package --no-dependencies
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: engenai-${{ github.sha }}.vsix
+          path: "*.vsix"

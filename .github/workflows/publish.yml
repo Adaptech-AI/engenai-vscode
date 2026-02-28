@@ -1,0 +1,50 @@
+name: Publish Extension
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install extension dependencies
+        run: npm ci
+
+      - name: Build extension
+        run: npm run package
+
+      - name: Install webview dependencies
+        run: cd webview-ui && npm ci
+
+      - name: Build webview
+        run: cd webview-ui && npm run build
+
+      # Publish to OpenVSX first (creates the VSIX)
+      - name: Publish to Open VSX Registry
+        uses: HaaLeo/publish-vscode-extension@v2
+        id: publishToOpenVSX
+        with:
+          pat: ${{ secrets.OVSX_PAT }}
+
+      # Publish to VS Code Marketplace (reuses same VSIX)
+      - name: Publish to VS Code Marketplace
+        uses: HaaLeo/publish-vscode-extension@v2
+        with:
+          pat: ${{ secrets.VSCE_PAT }}
+          registryUrl: https://marketplace.visualstudio.com
+          extensionFile: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: engenai-${{ github.ref_name }}.vsix
+          path: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
