@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/agentbadge.tsx","./src/components/agentchat.tsx","./src/components/connectionstatus.tsx","./src/components/messageinput.tsx","./src/components/projectselector.tsx","./src/hooks/usevscode.ts","./src/store/index.ts"],"version":"5.7.3"}

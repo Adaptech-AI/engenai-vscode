@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Reset for VS Code webview */
+body {
+  margin: 0;
+  padding: 0;
+  color: var(--vscode-foreground);
+  background-color: var(--vscode-sideBar-background);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}
+
+/* Scrollbar styling to match VS Code */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--vscode-scrollbarSlider-background);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+/* Markdown content styling */
+.prose-invert p {
+  margin: 0.25em 0;
+}
+.prose-invert code {
+  background: var(--vscode-textCodeBlock-background);
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+.prose-invert pre {
+  background: var(--vscode-textCodeBlock-background);
+  padding: 0.5em;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+.prose-invert pre code {
+  background: none;
+  padding: 0;
+}
+.prose-invert a {
+  color: var(--vscode-textLink-foreground);
+}
+.prose-invert a:hover {
+  color: var(--vscode-textLink-activeForeground);
+}

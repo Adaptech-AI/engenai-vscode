@@ -1,0 +1,186 @@
+{
+  "name": "engenai",
+  "displayName": "EnGenAI - AI Development Platform",
+  "description": "Multi-agent AI development orchestration. Talk to Keith, watch Sophi code, see Marv build UI — all from your IDE.",
+  "version": "0.1.0",
+  "publisher": "adaptech",
+  "license": "Apache-2.0",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.105.0"
+  },
+  "categories": [
+    "Machine Learning",
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "agent",
+    "multi-agent",
+    "development",
+    "copilot",
+    "mcp",
+    "llm",
+    "automation",
+    "engenai",
+    "orchestration"
+  ],
+  "preview": true,
+  "pricing": "Free",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Adaptech-AI/engenai-vscode"
+  },
+  "homepage": "https://engenai.app",
+  "bugs": {
+    "url": "https://github.com/Adaptech-AI/engenai-vscode/issues"
+  },
+  "galleryBanner": {
+    "color": "#00323D",
+    "theme": "dark"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onFileSystem:engenai"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "engenai-sidebar",
+          "title": "EnGenAI",
+          "icon": "media/engenai-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "engenai-sidebar": [
+        {
+          "type": "webview",
+          "id": "engenai.chatView",
+          "name": "Chat",
+          "contextualTitle": "EnGenAI Chat"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "engenai.signIn",
+        "title": "Sign In",
+        "category": "EnGenAI",
+        "icon": "$(sign-in)"
+      },
+      {
+        "command": "engenai.signOut",
+        "title": "Sign Out",
+        "category": "EnGenAI",
+        "icon": "$(sign-out)"
+      },
+      {
+        "command": "engenai.signInWithBrowser",
+        "title": "Sign In with Browser (Device Flow)",
+        "category": "EnGenAI"
+      },
+      {
+        "command": "engenai.openChat",
+        "title": "Open Chat Panel",
+        "category": "EnGenAI",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "engenai.askEnGenAI",
+        "title": "Ask EnGenAI",
+        "category": "EnGenAI",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "engenai.openInBrowser",
+        "title": "Open in EnGenAI",
+        "category": "EnGenAI"
+      },
+      {
+        "command": "engenai.diffWithLocal",
+        "title": "Diff with Local File",
+        "category": "EnGenAI"
+      },
+      {
+        "command": "engenai.copyVaultPath",
+        "title": "Copy Vault Path",
+        "category": "EnGenAI"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "engenai.askEnGenAI",
+          "when": "editorHasSelection",
+          "group": "engenai@1"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "engenai.openInBrowser",
+          "when": "resourceScheme == engenai",
+          "group": "engenai@1"
+        },
+        {
+          "command": "engenai.diffWithLocal",
+          "when": "resourceScheme == engenai && !explorerResourceIsFolder",
+          "group": "engenai@2"
+        },
+        {
+          "command": "engenai.copyVaultPath",
+          "when": "resourceScheme == engenai",
+          "group": "engenai@3"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "EnGenAI",
+      "properties": {
+        "engenai.serverUrl": {
+          "type": "string",
+          "default": "https://dev.engenai.app",
+          "description": "EnGenAI platform URL",
+          "scope": "machine"
+        },
+        "engenai.autoConnect": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically connect on startup"
+        },
+        "engenai.devvault.confirmWrites": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show confirmation dialog when writing to Dev-Vault (future feature)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "npm run check-types && node esbuild.js",
+    "check-types": "tsc --noEmit",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --preserveWatchOutput",
+    "package": "npm run check-types && node esbuild.js --production",
+    "vscode:prepublish": "npm run package && cd webview-ui && npm run build",
+    "test": "vscode-test",
+    "lint": "eslint src/"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.105.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "@vscode/vsce": "^3.2.0",
+    "esbuild": "^0.24.0",
+    "eslint": "^9.0.0",
+    "npm-run-all": "^4.1.5",
+    "ovsx": "^0.9.0",
+    "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "@microsoft/fetch-event-source": "^2.0.1"
+  }
+}

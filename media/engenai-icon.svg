@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Gear/cog outer ring representing "Engineering" -->
+  <circle cx="12" cy="12" r="9" />
+  <!-- AI brain/circuit nodes -->
+  <circle cx="12" cy="8" r="1.5" fill="currentColor" />
+  <circle cx="8" cy="14" r="1.5" fill="currentColor" />
+  <circle cx="16" cy="14" r="1.5" fill="currentColor" />
+  <!-- Connections between nodes -->
+  <line x1="12" y1="9.5" x2="8" y2="12.5" />
+  <line x1="12" y1="9.5" x2="16" y2="12.5" />
+  <line x1="8" y1="14" x2="16" y2="14" />
+</svg>
