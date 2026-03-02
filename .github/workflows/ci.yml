@@ -20,10 +20,21 @@ jobs:
       - name: Install extension dependencies
         run: npm ci
 
+      - name: Lint extension
+        run: npm run lint
+
       - name: Type check extension
         run: npm run check-types
 
-      - name: Build extension
+      - name: Compile extension TypeScript (for unit tests)
+        # tsc compiles src/ → out/; unit test runner expects out/test/unit/*.test.js
+        run: npx tsc --noEmit false
+
+      - name: Run unit tests
+        # .vscode-test.mjs uses unitTests mode — runs in Node.js, no VS Code required
+        run: npx vscode-test
+
+      - name: Build extension (production bundle)
         run: node esbuild.js --production
 
       - name: Install webview dependencies
@@ -36,7 +47,9 @@ jobs:
         run: cd webview-ui && npx vite build
 
       - name: Package VSIX
-        run: npx vsce package --no-dependencies
+        # Pin to vsce@2.x: vsce 3.x PAT verification bug hits manage/publishers/ (no publisher
+        # name) → Azure DevOps returns zero-UUID user → "lacks permission" even with valid PAT
+        run: npx @vscode/vsce@2.32.0 package --no-dependencies
 
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@v4

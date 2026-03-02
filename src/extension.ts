@@ -22,7 +22,8 @@ export async function activate(
   outputChannel.info("EnGenAI extension activating...");
 
   // --- Core services ---
-  const client = new EnGenAIClient();
+  const extensionVersion = context.extension.packageJSON.version as string;
+  const client = new EnGenAIClient(extensionVersion);
   const authManager = new AuthManager(context.secrets, client);
 
   const getProjectId = () => selectedProjectId;
